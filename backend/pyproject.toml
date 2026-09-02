@@ -1,0 +1,31 @@
+[project]
+name = "aipedia-hub-backend"
+version = "0.1.0"
+description = "API for the AIpedia Hub personal AI-tool library"
+requires-python = ">=3.12,<3.14"
+dependencies = [
+  "alembic>=1.14",
+  "fastapi>=0.115",
+  "httpx>=0.28",
+  "pydantic>=2.10",
+  "sqlalchemy>=2.0",
+  "uvicorn[standard]>=0.32",
+]
+
+[dependency-groups]
+dev = [
+  "httpx>=0.28",
+  "pytest>=8.3",
+  "ruff>=0.8",
+]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP"]
+ignore = ["E501"]
