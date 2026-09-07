@@ -23,7 +23,7 @@ watch(
   { deep: true },
 )
 
-const canSubmit = computed(() => Boolean(form.name.trim() && (form.official_url || form.summary || form.why_saved)))
+const canSubmit = computed(() => Boolean(form.name.trim() && form.official_url))
 
 function split(value: string): string[] {
   return [...new Set(value.split(',').map((item) => item.trim()).filter(Boolean))]
@@ -79,8 +79,8 @@ const draftFields = computed(() => {
         <input v-model="form.name" required maxlength="255" placeholder="例如 Archify" />
       </label>
       <label>
-        官网链接
-        <input v-model="form.official_url" type="url" placeholder="https://…" />
+        官网链接 <span class="required">*</span>
+        <input v-model="form.official_url" required type="url" placeholder="https://…" />
       </label>
       <label>
         别名
