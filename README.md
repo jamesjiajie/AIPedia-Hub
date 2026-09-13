@@ -13,24 +13,22 @@ This implementation is a personal, local-first knowledge base for AI tools.
 
 ## Development
 
-Start the API:
+Install the backend environment once, then start the complete local application from the frontend directory:
 
 ```bash
 cd backend
 uv sync --all-groups
-uv run uvicorn app.main:app --reload --port 8001
-```
 
-In a second terminal, start the frontend:
-
-```bash
-cd frontend
+cd ../frontend
 pnpm install
 pnpm dev
 ```
 
-Open `http://localhost:5173`. The API health check is available at
-`http://localhost:8001/api/health`.
+`pnpm dev` starts the API on `8001`, waits for its health check, then starts the
+frontend on `5173`. It reuses an already healthy AIpedia API. `pnpm dev:web`
+starts only the frontend when the API is already managed elsewhere.
+
+Open `http://localhost:5173`. The API health check is available at `http://localhost:8001/api/health`.
 
 ## Agnes smart drafts
 
