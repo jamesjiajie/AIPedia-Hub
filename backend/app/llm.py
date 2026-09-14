@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import logging
 from typing import Any, Protocol
 
 import httpx
@@ -16,6 +17,8 @@ from app.schemas import (
     ToolWrite,
 )
 
+logger = logging.getLogger(__name__)
+
 
 class LLMProvider(Protocol):
     def assess_candidate(self, request: CandidateAssessmentRequest) -> CandidateAssessmentRead: ...
@@ -28,7 +31,7 @@ class AgnesProvider:
 
     def __init__(self, config: Settings = settings, client: httpx.Client | None = None) -> None:
         self.config = config
-        self.client = client or httpx.Client(timeout=httpx.Timeout(45.0, connect=10.0))
+        self.client = client or httpx.Client(timeout=httpx.Timeout(120.0, connect=10.0))
 
     def assess_candidate(self, request: CandidateAssessmentRequest) -> CandidateAssessmentRead:
         content = self._complete(
@@ -167,7 +170,14 @@ class AgnesProvider:
             response.raise_for_status()
             body = response.json()
             return body["choices"][0]["message"]["content"]
+        except httpx.TimeoutException as exc:
+            logger.warning("Agnes request timed out: %s", exc)
+            raise HTTPException(
+                status_code=status.HTTP_504_GATEWAY_TIMEOUT,
+                detail="Agnes 响应超时，请稍后重试。",
+            ) from exc
         except (httpx.HTTPError, KeyError, IndexError, TypeError, ValueError) as exc:
+            logger.warning("Agnes request failed (%s): %s", type(exc).__name__, exc)
             raise HTTPException(
                 status_code=status.HTTP_502_BAD_GATEWAY,
                 detail="Agnes 未能返回可用结果，请稍后重试。",

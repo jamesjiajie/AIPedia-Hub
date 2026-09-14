@@ -1,9 +1,12 @@
 from uuid import uuid4
 
+import httpx
 import pytest
+from fastapi import HTTPException
 from fastapi.testclient import TestClient
 
 from app.api import get_llm_provider
+from app.config import Settings
 from app.crawler import CrawlError, _ensure_public_http_url, github_repository_targets
 from app.llm import AgnesProvider
 from app.main import app
@@ -64,6 +67,18 @@ def test_llm_parser_extracts_json_after_model_preamble() -> None:
         CandidateAssessmentRead,
     )
     assert result.candidate_id == "official"
+
+
+def test_agnes_timeout_is_reported_clearly() -> None:
+    class TimeoutClient:
+        def post(self, *_args, **_kwargs):
+            raise httpx.ReadTimeout("slow response")
+
+    provider = AgnesProvider(config=Settings(agnes_api_key="test-key"), client=TimeoutClient())
+    with pytest.raises(HTTPException) as exc_info:
+        provider._complete(system="test", payload={})
+    assert exc_info.value.status_code == 504
+    assert exc_info.value.detail == "Agnes 响应超时，请稍后重试。"
 
 
 def test_fallback_draft_keeps_process_status_out_of_tool_summary() -> None:
