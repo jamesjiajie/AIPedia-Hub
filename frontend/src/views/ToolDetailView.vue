@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { onMounted, ref } from 'vue'
+import { computed, onMounted, ref } from 'vue'
 import { useRoute } from 'vue-router'
 
 import { api } from '@/api'
@@ -10,6 +10,12 @@ const route = useRoute()
 const tool = ref<Tool | null>(null)
 const error = ref<unknown>(null)
 const busy = ref(false)
+const section = computed(() => {
+  const tags = tool.value?.tags ?? []
+  if (tags.some((tag) => tag.toLocaleLowerCase() === '量化')) return { key: 'quant', title: '量化工具', path: '/quant' }
+  if (tags.some((tag) => tag.toLocaleLowerCase() === '项目管理')) return { key: 'project', title: '项目管理', path: '/project-management' }
+  return null
+})
 
 function formatDate(value: string | null): string {
   if (!value) return '尚未查看'
@@ -43,7 +49,7 @@ async function changeStatus(): Promise<void> {
 
 <template>
   <section class="page narrow-page">
-    <RouterLink class="back-link" to="/">← 返回工具库</RouterLink>
+    <RouterLink class="back-link" :to="section?.path || '/'">← 返回{{ section?.title || '工具库' }}</RouterLink>
     <ErrorAlert v-if="error" :error="error" />
     <p v-else-if="!tool">正在读取记录…</p>
     <template v-else>
@@ -55,7 +61,7 @@ async function changeStatus(): Promise<void> {
         </div>
         <div class="detail-actions">
           <a v-if="tool.official_url" class="button button-secondary" :href="tool.official_url" target="_blank" rel="noreferrer">访问官网 ↗</a>
-          <RouterLink class="button button-primary" :to="`/tools/${tool.id}/edit`">编辑</RouterLink>
+          <RouterLink class="button button-primary" :to="`/tools/${tool.id}/edit${section ? `?section=${section.key}` : ''}`">编辑</RouterLink>
         </div>
       </div>
 

@@ -148,6 +148,25 @@ def test_create_search_and_archive_tool() -> None:
         assert archive_response.json()["status"] == "archived"
 
 
+def test_tools_can_be_filtered_by_quant_tag() -> None:
+    suffix = uuid4().hex[:8]
+    with TestClient(app) as client:
+        quant_tool = client.post(
+            "/api/tools",
+            json={"name": f"Quant {suffix}", "summary": "x", "tags": ["量化"]},
+        )
+        other_tool = client.post(
+            "/api/tools",
+            json={"name": f"Other {suffix}", "summary": "x", "tags": ["设计"]},
+        )
+        assert quant_tool.status_code == other_tool.status_code == 201
+
+        results = client.get("/api/tools", params={"tag": "量化"}).json()
+        ids = {item["id"] for item in results["items"]}
+        assert quant_tool.json()["id"] in ids
+        assert other_tool.json()["id"] not in ids
+
+
 def test_rename_category_and_find_uncategorized_tools() -> None:
     suffix = uuid4().hex[:8]
     with TestClient(app) as client:

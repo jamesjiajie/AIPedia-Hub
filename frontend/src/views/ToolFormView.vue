@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { onMounted, ref } from 'vue'
+import { computed, onMounted, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 
 import { api } from '@/api'
@@ -9,6 +9,11 @@ import { emptyTool, type CrawlJob, type ToolPayload } from '@/types'
 const route = useRoute()
 const router = useRouter()
 const id = route.params.id as string | undefined
+const section = computed(() => {
+  if (route.name === 'quant-tool-new' || route.query.section === 'quant') return { key: 'quant', tag: '量化', title: '量化工具', path: '/quant' }
+  if (route.name === 'project-tool-new' || route.query.section === 'project') return { key: 'project', tag: '项目管理', title: '项目管理', path: '/project-management' }
+  return null
+})
 const initialValue = ref<ToolPayload>(emptyTool())
 const loading = ref(Boolean(id))
 const saving = ref(false)
@@ -84,11 +89,11 @@ async function crawl(payload: ToolPayload): Promise<void> {
 
 <template>
   <section class="page narrow-page">
-    <RouterLink class="back-link" to="/">← 返回工具库</RouterLink>
+    <RouterLink class="back-link" :to="section?.path || '/'">← 返回{{ section?.title || '工具库' }}</RouterLink>
     <p class="eyebrow">{{ id ? '维护记录' : '快速收藏' }}</p>
-    <h1>{{ id ? '编辑工具' : '记录一个值得记住的工具' }}</h1>
+    <h1>{{ id ? '编辑工具' : section ? `记录一个${section.title}工具` : '记录一个值得记住的工具' }}</h1>
     <p class="subtle">填写官网或发现来源后，可直接抓取页面并让 Agnes 回填草稿；个人收藏原因和备注始终由你保留。</p>
     <p v-if="loading">正在读取记录…</p>
-    <ToolForm v-else :initial-value="initialValue" :saving="saving" :crawling="crawling" :crawl-job="crawlJob" :error="error" @submit="save" @crawl="crawl" @cancel="router.back()" />
+    <ToolForm v-else :initial-value="initialValue" :saving="saving" :crawling="crawling" :crawl-job="crawlJob" :error="error" :locked-tag="section?.tag" @submit="save" @crawl="crawl" @cancel="router.back()" />
   </section>
 </template>

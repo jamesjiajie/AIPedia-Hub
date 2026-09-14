@@ -11,6 +11,8 @@ import { RouterLink, RouterView } from 'vue-router'
       </RouterLink>
       <nav aria-label="主导航">
         <RouterLink to="/">工具库</RouterLink>
+        <RouterLink to="/quant">量化工具</RouterLink>
+        <RouterLink to="/project-management">项目管理</RouterLink>
         <RouterLink class="button button-primary" to="/tools/new">添加工具</RouterLink>
       </nav>
     </header>

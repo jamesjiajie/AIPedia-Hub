@@ -5,7 +5,7 @@ import { api } from '@/api'
 import ErrorAlert from '@/components/ErrorAlert.vue'
 import type { CrawlJob, TaxonomyItem, ToolPayload } from '@/types'
 
-const props = defineProps<{ initialValue: ToolPayload; saving?: boolean; crawling?: boolean; crawlJob?: CrawlJob | null; error?: unknown }>()
+const props = defineProps<{ initialValue: ToolPayload; saving?: boolean; crawling?: boolean; crawlJob?: CrawlJob | null; error?: unknown; lockedTag?: string }>()
 const emit = defineEmits<{ submit: [payload: ToolPayload]; crawl: [payload: ToolPayload]; cancel: [] }>()
 
 const form = reactive<ToolPayload>({ ...props.initialValue, aliases: [...props.initialValue.aliases], tags: [...props.initialValue.tags], platforms: [...props.initialValue.platforms] })
@@ -37,10 +37,14 @@ function submit(): void {
 }
 
 function payload(): ToolPayload {
+  const lockedTag = props.lockedTag?.trim()
+  const toolTags = lockedTag
+    ? [...form.tags.filter((tag) => tag.toLocaleLowerCase() !== lockedTag.toLocaleLowerCase()), lockedTag]
+    : form.tags
   return {
     name: form.name.trim(),
     aliases: split(aliasesInput.value),
-    tags: form.tags,
+    tags: toolTags,
     platforms: split(platformsInput.value),
     official_url: form.official_url || null,
     source_url: form.source_url || null,
@@ -71,6 +75,7 @@ function addTag(value = tagInput.value): void {
 }
 
 function removeTag(value: string): void {
+  if (props.lockedTag && value.toLocaleLowerCase() === props.lockedTag.toLocaleLowerCase()) return
   form.tags = form.tags.filter((tag) => tag !== value)
 }
 
@@ -120,13 +125,14 @@ const draftFields = computed(() => {
       <label>
         标签
         <div class="tag-editor">
-          <span v-for="tag in form.tags" :key="tag" class="tag tag-category">{{ tag }} <button type="button" :aria-label="`移除 ${tag}`" @click="removeTag(tag)">×</button></span>
+          <span v-for="tag in form.tags" :key="tag" class="tag tag-category">{{ tag }} <button v-if="tag.toLocaleLowerCase() !== lockedTag?.toLocaleLowerCase()" type="button" :aria-label="`移除 ${tag}`" @click="removeTag(tag)">×</button></span>
           <input v-model="tagInput" placeholder="输入标签，或从候选中选择" @keydown.enter.prevent="addTag()" />
         </div>
         <div v-if="tagSuggestions.length || tagInput.trim()" class="tag-suggestions">
           <button v-for="item in tagSuggestions" :key="`${item.source}-${item.name}`" type="button" @click="addTag(item.name)">{{ item.name }} <small>{{ item.source }}</small></button>
           <button v-if="tagInput.trim() && !tagSuggestions.some((item) => item.name.toLocaleLowerCase() === tagInput.trim().toLocaleLowerCase())" type="button" @click="addTag()">添加「{{ tagInput.trim() }}」</button>
         </div>
+        <p v-if="lockedTag" class="subtle">保存后会自动归入「{{ lockedTag }}」专区。</p>
       </label>
       <label>
         价格模式
