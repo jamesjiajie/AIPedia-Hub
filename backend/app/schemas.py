@@ -94,6 +94,36 @@ class TaxonomyRead(BaseModel):
     usage_count: int
 
 
+class CategoryRuleWrite(BaseModel):
+    model_config = ConfigDict(extra="forbid", str_strip_whitespace=True)
+
+    category_id: int
+    tag_name: str = Field(min_length=1, max_length=100)
+
+
+class CategoryRuleRead(CategoryRuleWrite):
+    id: int
+    category_name: str
+
+
+class ClassificationPreviewRead(BaseModel):
+    tool_id: int
+    tool_name: str
+    current_category: str | None
+    suggested_category_id: int | None
+    suggested_category_name: str | None
+    matched_tags: list[str]
+
+
+class ClassificationDecision(BaseModel):
+    tool_id: int
+    category_id: int
+
+
+class ClassificationApplyRequest(BaseModel):
+    decisions: list[ClassificationDecision] = Field(min_length=1)
+
+
 class HealthRead(BaseModel):
     status: str
     database: str

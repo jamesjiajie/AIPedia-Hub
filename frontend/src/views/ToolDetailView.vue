@@ -16,6 +16,10 @@ function formatDate(value: string | null): string {
   return new Intl.DateTimeFormat('zh-CN', { dateStyle: 'medium', timeStyle: 'short' }).format(new Date(value))
 }
 
+function pricingLabel(value: Tool['pricing_model']): string {
+  return { unknown: '价格待确认', free: '免费', freemium: '免费增值', paid: '付费', open_source: '开源' }[value]
+}
+
 onMounted(async () => {
   try {
     tool.value = await api.getTool(String(route.params.id))
@@ -47,6 +51,7 @@ async function changeStatus(): Promise<void> {
         <div>
           <div class="title-row"><h1>{{ tool.name }}</h1><span v-if="tool.is_favorite" class="favorite">★</span></div>
           <p v-if="tool.summary" class="subtle detail-summary">{{ tool.summary }}</p>
+          <a v-if="tool.official_url" class="official-url" :href="tool.official_url" target="_blank" rel="noreferrer">{{ tool.official_url }}</a>
         </div>
         <div class="detail-actions">
           <a v-if="tool.official_url" class="button button-secondary" :href="tool.official_url" target="_blank" rel="noreferrer">访问官网 ↗</a>
@@ -57,14 +62,18 @@ async function changeStatus(): Promise<void> {
       <div class="tag-row detail-tags">
         <span v-if="tool.category" class="tag tag-category">{{ tool.category }}</span>
         <span v-for="tag in tool.tags" :key="tag" class="tag">{{ tag }}</span>
-        <span class="tag">{{ tool.pricing_model }}</span>
+        <span class="tag">{{ pricingLabel(tool.pricing_model) }}</span>
         <span v-if="tool.status !== 'active'" class="tag tag-status">{{ tool.status }}</span>
       </div>
 
-      <section class="detail-section emphasis"><h2>我为什么收藏它</h2><p>{{ tool.why_saved || '尚未记录。' }}</p></section>
-      <section class="detail-section"><h2>什么时候使用</h2><p>{{ tool.use_cases || '尚未记录。' }}</p></section>
+      <section class="detail-section detail-overview">
+        <div><h2>官网</h2><a v-if="tool.official_url" :href="tool.official_url" target="_blank" rel="noreferrer">{{ tool.official_url }}</a><p v-else>尚未记录。</p></div>
+        <div><h2>平台</h2><p>{{ tool.platforms.length ? tool.platforms.join(' · ') : '尚未记录。' }}</p></div>
+        <div><h2>别名</h2><p>{{ tool.aliases.length ? tool.aliases.join(' · ') : '尚未记录。' }}</p></div>
+      </section>
+      <section v-if="tool.why_saved" class="detail-section emphasis"><h2>我为什么收藏它</h2><p>{{ tool.why_saved }}</p></section>
+      <section v-if="tool.use_cases" class="detail-section"><h2>什么时候使用</h2><p>{{ tool.use_cases }}</p></section>
       <section v-if="tool.notes" class="detail-section"><h2>个人备注</h2><p>{{ tool.notes }}</p></section>
-      <section v-if="tool.platforms.length" class="detail-section"><h2>平台</h2><p>{{ tool.platforms.join(' · ') }}</p></section>
       <section class="detail-section metadata">
         <h2>记录信息</h2>
         <p>创建于 {{ formatDate(tool.created_at) }} · 最后查看 {{ formatDate(tool.last_viewed_at) }}</p>

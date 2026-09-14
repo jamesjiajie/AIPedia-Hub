@@ -2,7 +2,18 @@ from __future__ import annotations
 
 from datetime import datetime
 
-from sqlalchemy import Boolean, Column, DateTime, ForeignKey, Integer, String, Table, Text, func
+from sqlalchemy import (
+    Boolean,
+    Column,
+    DateTime,
+    ForeignKey,
+    Integer,
+    String,
+    Table,
+    Text,
+    UniqueConstraint,
+    func,
+)
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db import Base
@@ -22,6 +33,18 @@ class Category(Base):
     name: Mapped[str] = mapped_column(String(100), nullable=False, unique=True)
     slug: Mapped[str] = mapped_column(String(120), nullable=False, unique=True)
     tools: Mapped[list[Tool]] = relationship(back_populates="category")
+    rules: Mapped[list[CategoryRule]] = relationship(back_populates="category", cascade="all, delete-orphan")
+
+
+class CategoryRule(Base):
+    __tablename__ = "category_rules"
+    __table_args__ = (UniqueConstraint("category_id", "tag_name"),)
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    category_id: Mapped[int] = mapped_column(ForeignKey("categories.id", ondelete="CASCADE"), nullable=False)
+    tag_name: Mapped[str] = mapped_column(String(100), nullable=False)
+
+    category: Mapped[Category] = relationship(back_populates="rules")
 
 
 class Tag(Base):

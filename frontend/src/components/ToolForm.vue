@@ -1,15 +1,18 @@
 <script setup lang="ts">
-import { computed, reactive, ref, watch } from 'vue'
+import { computed, onMounted, reactive, ref, watch } from 'vue'
 
+import { api } from '@/api'
 import ErrorAlert from '@/components/ErrorAlert.vue'
-import type { CrawlJob, ToolPayload } from '@/types'
+import type { CrawlJob, TaxonomyItem, ToolPayload } from '@/types'
 
 const props = defineProps<{ initialValue: ToolPayload; saving?: boolean; crawling?: boolean; crawlJob?: CrawlJob | null; error?: unknown }>()
 const emit = defineEmits<{ submit: [payload: ToolPayload]; crawl: [payload: ToolPayload]; cancel: [] }>()
 
-const form = reactive<ToolPayload>({ ...props.initialValue, aliases: [], tags: [], platforms: [] })
+const form = reactive<ToolPayload>({ ...props.initialValue, aliases: [...props.initialValue.aliases], tags: [...props.initialValue.tags], platforms: [...props.initialValue.platforms] })
 const aliasesInput = ref(props.initialValue.aliases.join(', '))
-const tagsInput = ref(props.initialValue.tags.join(', '))
+const tagInput = ref('')
+const tags = ref<TaxonomyItem[]>([])
+const categories = ref<TaxonomyItem[]>([])
 const platformsInput = ref(props.initialValue.platforms.join(', '))
 
 watch(
@@ -17,7 +20,6 @@ watch(
   (value) => {
     Object.assign(form, value)
     aliasesInput.value = value.aliases.join(', ')
-    tagsInput.value = value.tags.join(', ')
     platformsInput.value = value.platforms.join(', ')
   },
   { deep: true },
@@ -38,7 +40,7 @@ function payload(): ToolPayload {
   return {
     name: form.name.trim(),
     aliases: split(aliasesInput.value),
-    tags: split(tagsInput.value),
+    tags: form.tags,
     platforms: split(platformsInput.value),
     official_url: form.official_url || null,
     source_url: form.source_url || null,
@@ -52,6 +54,31 @@ function payload(): ToolPayload {
     status: form.status,
   }
 }
+
+const tagSuggestions = computed(() => {
+  const needle = tagInput.value.trim().toLocaleLowerCase()
+  const choices = [
+    ...tags.value.map((item) => ({ name: item.name, source: '已有标签' })),
+    ...categories.value.map((item) => ({ name: item.name, source: '分类目录' })),
+  ]
+  return choices.filter((item, index, all) => !form.tags.includes(item.name) && (!needle || item.name.toLocaleLowerCase().includes(needle)) && all.findIndex((candidate) => candidate.name === item.name) === index).slice(0, 8)
+})
+
+function addTag(value = tagInput.value): void {
+  const name = value.trim()
+  if (name && !form.tags.some((tag) => tag.toLocaleLowerCase() === name.toLocaleLowerCase())) form.tags.push(name)
+  tagInput.value = ''
+}
+
+function removeTag(value: string): void {
+  form.tags = form.tags.filter((tag) => tag !== value)
+}
+
+onMounted(async () => {
+  const [existingTags, existingCategories] = await Promise.all([api.listTags().catch(() => []), api.listCategories().catch(() => [])])
+  tags.value = existingTags
+  categories.value = existingCategories
+})
 
 const canCrawl = computed(() => Boolean(form.name.trim() && (form.official_url || form.source_url)))
 const draftFields = computed(() => {
@@ -92,7 +119,14 @@ const draftFields = computed(() => {
       </label>
       <label>
         标签
-        <input v-model="tagsInput" placeholder="例如：代码库, 架构" />
+        <div class="tag-editor">
+          <span v-for="tag in form.tags" :key="tag" class="tag tag-category">{{ tag }} <button type="button" :aria-label="`移除 ${tag}`" @click="removeTag(tag)">×</button></span>
+          <input v-model="tagInput" placeholder="输入标签，或从候选中选择" @keydown.enter.prevent="addTag()" />
+        </div>
+        <div v-if="tagSuggestions.length || tagInput.trim()" class="tag-suggestions">
+          <button v-for="item in tagSuggestions" :key="`${item.source}-${item.name}`" type="button" @click="addTag(item.name)">{{ item.name }} <small>{{ item.source }}</small></button>
+          <button v-if="tagInput.trim() && !tagSuggestions.some((item) => item.name.toLocaleLowerCase() === tagInput.trim().toLocaleLowerCase())" type="button" @click="addTag()">添加「{{ tagInput.trim() }}」</button>
+        </div>
       </label>
       <label>
         价格模式

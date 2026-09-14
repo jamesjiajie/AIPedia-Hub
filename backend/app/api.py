@@ -12,6 +12,10 @@ from app.models import Category, Tag
 from app.schemas import (
     CandidateAssessmentRead,
     CandidateAssessmentRequest,
+    CategoryRuleRead,
+    CategoryRuleWrite,
+    ClassificationApplyRequest,
+    ClassificationPreviewRead,
     CrawlJobRead,
     CrawlRequest,
     HealthRead,
@@ -26,9 +30,18 @@ from app.schemas import (
     ToolWrite,
 )
 from app.services import (
+    apply_classification,
+    classification_preview,
+    create_category_rule,
     create_taxonomy,
     create_tool,
+    delete_category,
+    delete_category_rule,
+    delete_tag,
+    list_category_rules,
     list_taxonomy,
+    rename_category,
+    rename_tag,
     search_tools,
     set_tool_status,
     update_tool,
@@ -127,6 +140,41 @@ def add_category(payload: TaxonomyWrite, session: SessionDependency) -> Taxonomy
     return create_taxonomy(session, Category, payload.name)
 
 
+@router.patch("/categories/{category_id}", response_model=TaxonomyRead)
+def edit_category(category_id: int, payload: TaxonomyWrite, session: SessionDependency) -> TaxonomyRead:
+    return rename_category(session, category_id, payload.name)
+
+
+@router.delete("/categories/{category_id}", status_code=204)
+def remove_category(category_id: int, session: SessionDependency) -> None:
+    delete_category(session, category_id)
+
+
+@router.get("/category-rules", response_model=list[CategoryRuleRead])
+def category_rules(session: SessionDependency) -> list[CategoryRuleRead]:
+    return list_category_rules(session)
+
+
+@router.post("/category-rules", response_model=CategoryRuleRead, status_code=201)
+def add_category_rule(payload: CategoryRuleWrite, session: SessionDependency) -> CategoryRuleRead:
+    return create_category_rule(session, payload.category_id, payload.tag_name)
+
+
+@router.delete("/category-rules/{rule_id}", status_code=204)
+def remove_category_rule(rule_id: int, session: SessionDependency) -> None:
+    delete_category_rule(session, rule_id)
+
+
+@router.get("/classification-preview", response_model=list[ClassificationPreviewRead])
+def get_classification_preview(session: SessionDependency) -> list[ClassificationPreviewRead]:
+    return classification_preview(session)
+
+
+@router.post("/classify", response_model=list[ToolRead])
+def classify_tools(payload: ClassificationApplyRequest, session: SessionDependency) -> list[ToolRead]:
+    return apply_classification(session, payload)
+
+
 @router.get("/tags", response_model=list[TaxonomyRead])
 def tags(session: SessionDependency) -> list[TaxonomyRead]:
     return list_taxonomy(session, Tag)
@@ -135,3 +183,13 @@ def tags(session: SessionDependency) -> list[TaxonomyRead]:
 @router.post("/tags", response_model=TaxonomyRead, status_code=201)
 def add_tag(payload: TaxonomyWrite, session: SessionDependency) -> TaxonomyRead:
     return create_taxonomy(session, Tag, payload.name)
+
+
+@router.patch("/tags/{tag_id}", response_model=TaxonomyRead)
+def edit_tag(tag_id: int, payload: TaxonomyWrite, session: SessionDependency) -> TaxonomyRead:
+    return rename_tag(session, tag_id, payload.name)
+
+
+@router.delete("/tags/{tag_id}", status_code=204)
+def remove_tag(tag_id: int, session: SessionDependency) -> None:
+    delete_tag(session, tag_id)

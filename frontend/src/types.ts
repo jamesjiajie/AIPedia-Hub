@@ -41,6 +41,22 @@ export interface TaxonomyItem {
   usage_count: number
 }
 
+export interface CategoryRule {
+  id: number
+  category_id: number
+  category_name: string
+  tag_name: string
+}
+
+export interface ClassificationPreview {
+  tool_id: number
+  tool_name: string
+  current_category: string | null
+  suggested_category_id: number | null
+  suggested_category_name: string | null
+  matched_tags: string[]
+}
+
 export interface DiscoverySource {
   url: string
   title: string | null

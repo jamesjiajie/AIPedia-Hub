@@ -148,6 +148,82 @@ def test_create_search_and_archive_tool() -> None:
         assert archive_response.json()["status"] == "archived"
 
 
+def test_rename_category_and_find_uncategorized_tools() -> None:
+    suffix = uuid4().hex[:8]
+    with TestClient(app) as client:
+        categorized = client.post(
+            "/api/tools",
+            json={"name": f"Categorized {suffix}", "summary": "x", "category": f"Before {suffix}"},
+        )
+        assert categorized.status_code == 201
+        category_id = next(item["id"] for item in client.get("/api/categories").json() if item["name"] == f"Before {suffix}")
+
+        renamed = client.patch(f"/api/categories/{category_id}", json={"name": f"After {suffix}"})
+        assert renamed.status_code == 200
+        assert renamed.json()["slug"] == f"before-{suffix}"
+        assert client.get("/api/tools", params={"category": f"before-{suffix}"}).json()["total"] >= 1
+
+        uncategorized = client.post("/api/tools", json={"name": f"Uncategorized {suffix}", "summary": "x"})
+        assert uncategorized.status_code == 201
+        results = client.get("/api/tools", params={"category": "__uncategorized__"}).json()
+        assert any(item["id"] == uncategorized.json()["id"] for item in results["items"])
+
+
+def test_tag_rule_previews_and_classifies_uncategorized_tool() -> None:
+    suffix = uuid4().hex[:8]
+    with TestClient(app) as client:
+        category = client.post("/api/categories", json={"name": f"Design {suffix}"})
+        assert category.status_code == 201
+        rule = client.post(
+            "/api/category-rules",
+            json={"category_id": category.json()["id"], "tag_name": f"image-{suffix}"},
+        )
+        assert rule.status_code == 201
+        tool = client.post(
+            "/api/tools",
+            json={"name": f"Image tool {suffix}", "summary": "x", "tags": [f"image-{suffix}"]},
+        )
+        assert tool.status_code == 201
+
+        preview = client.get("/api/classification-preview").json()
+        item = next(entry for entry in preview if entry["tool_id"] == tool.json()["id"])
+        assert item["suggested_category_id"] == category.json()["id"]
+
+        applied = client.post(
+            "/api/classify",
+            json={"decisions": [{"tool_id": tool.json()["id"], "category_id": category.json()["id"]}]},
+        )
+        assert applied.status_code == 200
+        assert applied.json()[0]["category"] == f"Design {suffix}"
+
+
+def test_taxonomy_can_be_renamed_and_deleted_without_deleting_tools() -> None:
+    suffix = uuid4().hex[:8]
+    with TestClient(app) as client:
+        tool = client.post(
+            "/api/tools",
+            json={
+                "name": f"Taxonomy {suffix}",
+                "summary": "x",
+                "category": f"Category {suffix}",
+                "tags": [f"Tag {suffix}"],
+            },
+        ).json()
+        categories = client.get("/api/categories").json()
+        category = next(item for item in categories if item["name"] == f"Category {suffix}")
+        removed_category = client.delete(f"/api/categories/{category['id']}")
+        assert removed_category.status_code == 204
+        assert client.get(f"/api/tools/{tool['id']}").json()["category"] is None
+
+        tags = client.get("/api/tags").json()
+        tag = next(item for item in tags if item["name"] == f"Tag {suffix}")
+        renamed = client.patch(f"/api/tags/{tag['id']}", json={"name": f"Renamed {suffix}"})
+        assert renamed.status_code == 200
+        removed_tag = client.delete(f"/api/tags/{tag['id']}")
+        assert removed_tag.status_code == 204
+        assert client.get(f"/api/tools/{tool['id']}").json()["tags"] == []
+
+
 def test_discovery_endpoints_use_server_side_provider() -> None:
     app.dependency_overrides[get_llm_provider] = FakeLLMProvider
     try:

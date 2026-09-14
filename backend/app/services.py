@@ -12,8 +12,18 @@ from sqlalchemy import Select, func, or_, select, text
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session, selectinload
 
-from app.models import Category, Tag, Tool
-from app.schemas import TaxonomyRead, ToolListResponse, ToolPatch, ToolRead, ToolStatus, ToolWrite
+from app.models import Category, CategoryRule, Tag, Tool
+from app.schemas import (
+    CategoryRuleRead,
+    ClassificationApplyRequest,
+    ClassificationPreviewRead,
+    TaxonomyRead,
+    ToolListResponse,
+    ToolPatch,
+    ToolRead,
+    ToolStatus,
+    ToolWrite,
+)
 
 TRACKING_QUERY_PREFIXES = ("utm_",)
 TRACKING_QUERY_NAMES = {"fbclid", "gclid", "mc_cid", "mc_eid"}
@@ -234,7 +244,9 @@ def search_tools(
         selectinload(Tool.category), selectinload(Tool.tags)
     )
     query = query.where(Tool.status == status_value.value)
-    if category:
+    if category == "__uncategorized__":
+        query = query.where(Tool.category_id.is_(None))
+    elif category:
         query = query.join(Tool.category).where(Category.slug == slugify(category))
     if pricing_model:
         query = query.where(Tool.pricing_model == pricing_model)
@@ -314,3 +326,119 @@ def create_taxonomy(session: Session, model: type[Category] | type[Tag], name: s
     session.add(item)
     session.commit()
     return TaxonomyRead(id=item.id, name=item.name, slug=item.slug, usage_count=0)
+
+
+def rename_category(session: Session, category_id: int, name: str) -> TaxonomyRead:
+    category = session.get(Category, category_id)
+    if category is None:
+        raise HTTPException(status_code=404, detail="Category not found.")
+    clean = name.strip()
+    duplicate = session.scalar(
+        select(Category).where(func.lower(Category.name) == clean.casefold(), Category.id != category_id)
+    )
+    if duplicate:
+        raise HTTPException(status_code=409, detail="A category with this name already exists.")
+    category.name = clean
+    session.commit()
+    return TaxonomyRead(id=category.id, name=category.name, slug=category.slug, usage_count=len(category.tools))
+
+
+def delete_category(session: Session, category_id: int) -> None:
+    category = session.get(Category, category_id)
+    if category is None:
+        raise HTTPException(status_code=404, detail="Category not found.")
+    for tool in category.tools:
+        tool.category = None
+    session.delete(category)
+    session.commit()
+
+
+def rename_tag(session: Session, tag_id: int, name: str) -> TaxonomyRead:
+    tag = session.get(Tag, tag_id)
+    if tag is None:
+        raise HTTPException(status_code=404, detail="Tag not found.")
+    clean = name.strip()
+    duplicate = session.scalar(select(Tag).where(func.lower(Tag.name) == clean.casefold(), Tag.id != tag_id))
+    if duplicate:
+        raise HTTPException(status_code=409, detail="A tag with this name already exists.")
+    previous_name = tag.name
+    tag.name = clean
+    for rule in session.scalars(select(CategoryRule).where(func.lower(CategoryRule.tag_name) == previous_name.casefold())):
+        rule.tag_name = clean
+    session.commit()
+    return TaxonomyRead(id=tag.id, name=tag.name, slug=tag.slug, usage_count=len(tag.tools))
+
+
+def delete_tag(session: Session, tag_id: int) -> None:
+    tag = session.get(Tag, tag_id)
+    if tag is None:
+        raise HTTPException(status_code=404, detail="Tag not found.")
+    for tool in tag.tools:
+        tool.tags.remove(tag)
+    for rule in session.scalars(select(CategoryRule).where(func.lower(CategoryRule.tag_name) == tag.name.casefold())):
+        session.delete(rule)
+    session.delete(tag)
+    session.commit()
+
+
+def list_category_rules(session: Session) -> list[CategoryRuleRead]:
+    rules = session.scalars(select(CategoryRule).join(Category).order_by(Category.name, CategoryRule.tag_name)).all()
+    return [CategoryRuleRead(id=rule.id, category_id=rule.category_id, category_name=rule.category.name, tag_name=rule.tag_name) for rule in rules]
+
+
+def create_category_rule(session: Session, category_id: int, tag_name: str) -> CategoryRuleRead:
+    category = session.get(Category, category_id)
+    if category is None:
+        raise HTTPException(status_code=404, detail="Category not found.")
+    clean = tag_name.strip()
+    existing = session.scalar(select(CategoryRule).where(CategoryRule.category_id == category_id, func.lower(CategoryRule.tag_name) == clean.casefold()))
+    if existing:
+        return CategoryRuleRead(id=existing.id, category_id=category.id, category_name=category.name, tag_name=existing.tag_name)
+    rule = CategoryRule(category=category, tag_name=clean)
+    session.add(rule)
+    session.commit()
+    return CategoryRuleRead(id=rule.id, category_id=category.id, category_name=category.name, tag_name=rule.tag_name)
+
+
+def delete_category_rule(session: Session, rule_id: int) -> None:
+    rule = session.get(CategoryRule, rule_id)
+    if rule is None:
+        raise HTTPException(status_code=404, detail="Category rule not found.")
+    session.delete(rule)
+    session.commit()
+
+
+def classification_preview(session: Session) -> list[ClassificationPreviewRead]:
+    rules = list_category_rules(session)
+    by_tag: dict[str, list[CategoryRuleRead]] = {}
+    for rule in rules:
+        by_tag.setdefault(rule.tag_name.casefold(), []).append(rule)
+    tools = session.scalars(select(Tool).options(selectinload(Tool.tags)).where(Tool.status == ToolStatus.ACTIVE.value, Tool.category_id.is_(None))).all()
+    preview: list[ClassificationPreviewRead] = []
+    for tool in tools:
+        matches = [tag.name for tag in tool.tags if tag.name.casefold() in by_tag]
+        candidates = {rule.category_id: rule for tag in matches for rule in by_tag[tag.casefold()]}
+        if not matches:
+            continue
+        suggestion = next(iter(candidates.values())) if len(candidates) == 1 else None
+        preview.append(ClassificationPreviewRead(
+            tool_id=tool.id, tool_name=tool.name, current_category=None,
+            suggested_category_id=suggestion.category_id if suggestion else None,
+            suggested_category_name=suggestion.category_name if suggestion else None,
+            matched_tags=matches,
+        ))
+    return preview
+
+
+def apply_classification(session: Session, payload: ClassificationApplyRequest) -> list[ToolRead]:
+    category_ids = {decision.category_id for decision in payload.decisions}
+    categories = {category.id: category for category in session.scalars(select(Category).where(Category.id.in_(category_ids)))}
+    if len(categories) != len(category_ids):
+        raise HTTPException(status_code=404, detail="Category not found.")
+    tools = {tool.id: tool for tool in session.scalars(select(Tool).options(selectinload(Tool.category), selectinload(Tool.tags)).where(Tool.id.in_([decision.tool_id for decision in payload.decisions])))}
+    if len(tools) != len(payload.decisions):
+        raise HTTPException(status_code=404, detail="Tool not found.")
+    for decision in payload.decisions:
+        tools[decision.tool_id].category = categories[decision.category_id]
+    session.commit()
+    return [to_tool_read(tools[decision.tool_id]) for decision in payload.decisions]

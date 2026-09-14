@@ -1,4 +1,4 @@
-import type { CrawlJob, DiscoverySource, TaxonomyItem, Tool, ToolDraft, ToolListResponse, ToolPayload } from '@/types'
+import type { CategoryRule, ClassificationPreview, CrawlJob, DiscoverySource, TaxonomyItem, Tool, ToolDraft, ToolListResponse, ToolPayload } from '@/types'
 
 export class ApiError extends Error {
   constructor(
@@ -46,6 +46,7 @@ async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
     const detail = describeError(payload, response.statusText || '服务未返回可识别的错误说明。')
     throw new ApiError(`请求失败（HTTP ${response.status}）。`, response.status, path, detail)
   }
+  if (response.status === 204) return undefined as T
   return response.json() as Promise<T>
 }
 
@@ -81,7 +82,37 @@ export const api = {
   listCategories() {
     return request<TaxonomyItem[]>('/categories')
   },
+  createCategory(name: string) {
+    return request<TaxonomyItem>('/categories', { method: 'POST', body: JSON.stringify({ name }) })
+  },
+  renameCategory(id: number, name: string) {
+    return request<TaxonomyItem>(`/categories/${id}`, { method: 'PATCH', body: JSON.stringify({ name }) })
+  },
+  deleteCategory(id: number) {
+    return request<void>(`/categories/${id}`, { method: 'DELETE' })
+  },
+  listCategoryRules() {
+    return request<CategoryRule[]>('/category-rules')
+  },
+  createCategoryRule(categoryId: number, tagName: string) {
+    return request<CategoryRule>('/category-rules', { method: 'POST', body: JSON.stringify({ category_id: categoryId, tag_name: tagName }) })
+  },
+  deleteCategoryRule(id: number) {
+    return request<void>(`/category-rules/${id}`, { method: 'DELETE' })
+  },
+  classificationPreview() {
+    return request<ClassificationPreview[]>('/classification-preview')
+  },
+  applyClassification(decisions: Array<{ tool_id: number; category_id: number }>) {
+    return request<Tool[]>('/classify', { method: 'POST', body: JSON.stringify({ decisions }) })
+  },
   listTags() {
     return request<TaxonomyItem[]>('/tags')
+  },
+  renameTag(id: number, name: string) {
+    return request<TaxonomyItem>(`/tags/${id}`, { method: 'PATCH', body: JSON.stringify({ name }) })
+  },
+  deleteTag(id: number) {
+    return request<void>(`/tags/${id}`, { method: 'DELETE' })
   },
 }
