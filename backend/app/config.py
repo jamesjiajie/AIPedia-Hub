@@ -33,7 +33,7 @@ class Settings:
     agnes_base_url: str = os.getenv("AGNES_BASE_URL", "https://apihub.agnes-ai.com/v1").rstrip(
         "/"
     )
-    agnes_model: str = os.getenv("AGNES_MODEL", "agnes-2.5-flash")
+    agnes_model: str = os.getenv("AGNES_MODEL", "agnes-3.0-flash")
 
 
 settings = Settings()

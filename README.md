@@ -35,7 +35,7 @@ Open `http://localhost:5173`. The API health check is available at `http://local
 Copy `backend/.env.example` to `backend/.env`, then set `AGNES_API_KEY`. The key is
 read only by the API server; do not add it to the frontend or commit the `.env` file.
 Open `/discover` to paste trusted source excerpts and generate a reviewable tool-card
-draft with `agnes-2.5-flash`. The model never fetches arbitrary URLs and the card is
+draft with `agnes-3.0-flash`. The model never fetches arbitrary URLs and the card is
 saved only after you review it.
 
 ## Checks
