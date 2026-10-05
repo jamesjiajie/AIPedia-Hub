@@ -1,4 +1,4 @@
-import type { CategoryRule, ClassificationPreview, CrawlJob, DiscoverySource, TaxonomyItem, Tool, ToolDraft, ToolListResponse, ToolPayload } from '@/types'
+import type { AssistantReply, CategoryRule, ClassificationPreview, CrawlJob, DiscoverySource, TaxonomyItem, Tool, ToolDraft, ToolListResponse, ToolPayload } from '@/types'
 
 export class ApiError extends Error {
   constructor(
@@ -51,6 +51,9 @@ async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
 }
 
 export const api = {
+  askAssistant(payload: { question: string; scope_tag: string | null; include_personal_notes: boolean; history: Array<{ role: 'user' | 'assistant'; content: string }> }) {
+    return request<AssistantReply>('/assistant/ask', { method: 'POST', body: JSON.stringify(payload) })
+  },
   listTools(params: URLSearchParams) {
     const search = params.toString()
     return request<ToolListResponse>(`/tools${search ? `?${search}` : ''}`)

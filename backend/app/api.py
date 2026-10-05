@@ -3,13 +3,16 @@ from __future__ import annotations
 from typing import Annotated, Literal
 
 from fastapi import APIRouter, Depends, Query
-from sqlalchemy.orm import Session
+from sqlalchemy import select
+from sqlalchemy.orm import Session, selectinload
 
 from app.crawl_jobs import crawl_jobs
 from app.db import get_session
 from app.llm import LLMProvider, get_llm_provider
-from app.models import Category, Tag
+from app.models import Category, Tag, Tool
 from app.schemas import (
+    AssistantQuestion,
+    AssistantReply,
     CandidateAssessmentRead,
     CandidateAssessmentRequest,
     CategoryRuleRead,
@@ -44,6 +47,7 @@ from app.services import (
     rename_tag,
     search_tools,
     set_tool_status,
+    to_tool_read,
     update_tool,
     view_tool,
 )
@@ -76,6 +80,45 @@ def start_crawl(payload: CrawlRequest, provider: LLMDependency) -> CrawlJobRead:
 @router.get("/discovery/crawl/{job_id}", response_model=CrawlJobRead)
 def get_crawl(job_id: str) -> CrawlJobRead:
     return crawl_jobs.get(job_id)
+
+
+@router.post("/assistant/ask", response_model=AssistantReply)
+def ask_assistant(payload: AssistantQuestion, session: SessionDependency, provider: LLMDependency) -> AssistantReply:
+    query = select(Tool).options(selectinload(Tool.category), selectinload(Tool.tags)).where(Tool.status == ToolStatus.ACTIVE.value)
+    if payload.scope_tag:
+        query = query.where(Tool.tags.any(Tag.name == payload.scope_tag))
+    records = [to_tool_read(tool) for tool in session.scalars(query).unique()]
+    if not records:
+        return AssistantReply(answer="这个范围里还没有可供检索的工具记录。", tools=[])
+
+    evidence = [
+        {
+            "id": tool.id,
+            "name": tool.name,
+            "aliases": tool.aliases,
+            "summary": (tool.summary or "")[:600],
+            "use_cases": (tool.use_cases or "")[:500],
+            "category": tool.category,
+            "tags": tool.tags,
+            "pricing_model": {
+                "unknown": "价格未确认",
+                "free": "免费",
+                "freemium": "免费增值",
+                "paid": "付费",
+                "open_source": "开源，具体价格未确认",
+            }[tool.pricing_model],
+            "platforms": tool.platforms,
+            **({"why_saved": (tool.why_saved or "")[:400], "notes": (tool.notes or "")[:500]} if payload.include_personal_notes else {}),
+        }
+        for tool in records
+    ]
+    result = provider.answer_tools(payload, evidence)
+    by_id = {tool.id: tool for tool in records}
+    valid_ids = [tool_id for tool_id in dict.fromkeys(result.tool_ids) if tool_id in by_id]
+    answer = result.answer
+    for tool_id in valid_ids:
+        answer = answer.replace(f"[工具 {tool_id}]", f"【工具 {tool_id}】").replace(f"[{tool_id}]", f"【工具 {tool_id}】")
+    return AssistantReply(answer=answer, tools=[by_id[tool_id] for tool_id in valid_ids])
 
 
 @router.get("/tools", response_model=ToolListResponse)

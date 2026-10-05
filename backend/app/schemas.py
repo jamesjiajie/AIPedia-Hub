@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from datetime import datetime
 from enum import StrEnum
+from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
@@ -79,6 +80,28 @@ class ToolListResponse(BaseModel):
     page: int
     page_size: int
     total: int
+
+
+class AssistantMessage(BaseModel):
+    role: Literal["user", "assistant"]
+    content: str = Field(min_length=1, max_length=4000)
+
+
+class AssistantQuestion(BaseModel):
+    question: str = Field(min_length=1, max_length=2000)
+    scope_tag: Literal["量化", "项目管理"] | None = None
+    include_personal_notes: bool = False
+    history: list[AssistantMessage] = Field(default_factory=list, max_length=12)
+
+
+class AssistantModelAnswer(BaseModel):
+    answer: str = Field(min_length=1)
+    tool_ids: list[int] = Field(default_factory=list, max_length=8)
+
+
+class AssistantReply(BaseModel):
+    answer: str
+    tools: list[ToolRead]
 
 
 class TaxonomyWrite(BaseModel):

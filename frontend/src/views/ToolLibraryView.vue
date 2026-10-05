@@ -5,6 +5,7 @@ import { useRoute, useRouter } from 'vue-router'
 import { api } from '@/api'
 import ErrorAlert from '@/components/ErrorAlert.vue'
 import ToolCard from '@/components/ToolCard.vue'
+import ToolAssistant from '@/components/ToolAssistant.vue'
 import type { CategoryRule, ClassificationPreview, TaxonomyItem, Tool, ToolPayload } from '@/types'
 
 const route = useRoute()
@@ -299,7 +300,10 @@ onMounted(async () => {
         <div class="library-title-row"><h1>{{ section?.title || '工具库' }}</h1><span>{{ total }} 个工具</span></div>
         <p class="subtle">{{ section?.description || '保存工具，也保存它对你有意义的理由。' }}</p>
       </div>
-      <RouterLink class="button button-primary" :to="section ? `${section.path}/tools/new` : '/tools/new'">添加{{ section?.title || '' }}工具</RouterLink>
+      <div class="library-heading-actions">
+        <ToolAssistant :scope-tag="section?.tag ?? null" />
+        <RouterLink class="button button-primary" :to="section ? `${section.path}/tools/new` : '/tools/new'">添加{{ section?.title || '' }}工具</RouterLink>
+      </div>
     </div>
 
     <div class="library-layout">

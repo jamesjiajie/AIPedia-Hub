@@ -34,6 +34,11 @@ export interface ToolListResponse {
   total: number
 }
 
+export interface AssistantReply {
+  answer: string
+  tools: Tool[]
+}
+
 export interface TaxonomyItem {
   id: number
   name: string
